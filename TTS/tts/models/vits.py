@@ -36,6 +36,10 @@ from TTS.utils.io import load_fsspec
 from TTS.utils.samplers import BucketBatchSampler
 from TTS.vocoder.models.hifigan_generator import HifiganGenerator
 from TTS.vocoder.utils.generic_utils import plot_results
+from TTS.encoder.models.lstm import LSTMSpeakerEncoder
+from TTS.config import load_config
+from TTS.utils.audio import AudioProcessor
+
 
 ##############################
 # IO / Feature extraction
@@ -278,12 +282,19 @@ class VitsDataset(TTSDataset):
             self.rescue_item_idx += 1
             return self.__getitem__(self.rescue_item_idx)
 
+        speaker_emb = item["speaker_emb"]
+
         return {
             "raw_text": raw_text,
             "token_ids": token_ids,
             "token_len": len(token_ids),
             "wav": wav,
             "wav_file": wav_filename,
+            "speaker_emb": speaker_emb,
+            "speaker_name": item["speaker_name"]
+            #"wav_refs": [s["wav"] for s in speaker_references],
+            #"len_refs": [s["duration"] for s in speaker_references],
+            #"path_refs": [s["file"] for s in speaker_references]
         }
 
     @property
@@ -313,7 +324,7 @@ class VitsDataset(TTSDataset):
         # convert list of dicts to dict of lists
         B = len(batch)
         batch = {k: [dic[k] for dic in batch] for k in batch[0]}
-
+        print(batch.keys())
         _, ids_sorted_decreasing = torch.sort(
             torch.LongTensor([x.size(1) for x in batch["wav"]]), dim=0, descending=True
         )
@@ -337,6 +348,9 @@ class VitsDataset(TTSDataset):
 
             wav = batch["wav"][i]
             wav_padded[i, :, : wav.size(1)] = torch.FloatTensor(wav)
+        
+        speaker_emb = torch.stack(batch["speaker_emb"])
+        
 
         return {
             "tokens": token_padded,
@@ -347,6 +361,11 @@ class VitsDataset(TTSDataset):
             "waveform_rel_lens": wav_rel_lens,
             "audio_files": batch["wav_file"],
             "raw_text": batch["raw_text"],
+            "speaker_emb": speaker_emb,
+            "speaker_names": batch["speaker_name"],
+            #"wav_refs": batch["wav_refs"],
+            #"len_refs": batch["len_refs"],
+            #"path_refs": batch["path_refs"]
         }
 
 
@@ -643,6 +662,8 @@ class Vits(BaseTTS):
         self.max_inference_len = self.args.max_inference_len
         self.spec_segment_size = self.args.spec_segment_size
 
+        self.embedded_speaker_dim = 256
+
         self.text_encoder = TextEncoder(
             self.args.num_chars,
             self.args.hidden_channels,
@@ -715,7 +736,11 @@ class Vits(BaseTTS):
                 periods=self.args.periods_multi_period_discriminator,
                 use_spectral_norm=self.args.use_spectral_norm_disriminator,
             )
-
+        
+        self.speaker_config = load_config(config.model_args.speaker_encoder_config_path)
+        
+        self.speaker_ap = AudioProcessor.init_from_config(self.speaker_config.audio)
+        
     @property
     def device(self):
         return next(self.parameters()).device
@@ -751,7 +776,6 @@ class Vits(BaseTTS):
                 raise RuntimeError(
                     " [!] To use the speaker consistency loss (SCL) you need to specify speaker_encoder_model_path and speaker_encoder_config_path !!"
                 )
-
             self.speaker_manager.encoder.eval()
             print(" > External Speaker Encoder Loaded !!")
 
@@ -862,6 +886,9 @@ class Vits(BaseTTS):
         if self.args.freeze_waveform_decoder:
             for param in self.waveform_decoder.parameters():
                 param.requires_grad = False
+        # Freeze speaker encoder layers
+        for param in self.speaker_manager.encoder.parameters():
+            param.requires_grad = False
 
     @staticmethod
     def _set_cond_input(aux_input: Dict):
@@ -958,6 +985,7 @@ class Vits(BaseTTS):
         y: torch.tensor,
         y_lengths: torch.tensor,
         waveform: torch.tensor,
+        speaker_emb: torch.tensor,
         aux_input={"d_vectors": None, "speaker_ids": None, "language_ids": None},
     ) -> Dict:
         """Forward pass of the model.
@@ -980,8 +1008,8 @@ class Vits(BaseTTS):
             - y: :math:`[B, C, T_spec]`
             - y_lengths: :math:`[B]`
             - waveform: :math:`[B, 1, T_wav]`
-            - d_vectors: :math:`[B, C, 1]`
-            - speaker_ids: :math:`[B]`
+            - speaker_emb: [B, 256]
+
             - language_ids: :math:`[B]`
 
         Return Shapes:
@@ -1000,14 +1028,13 @@ class Vits(BaseTTS):
         outputs = {}
         sid, g, lid, _ = self._set_cond_input(aux_input)
         # speaker embedding
-        if self.args.use_speaker_embedding and sid is not None:
-            g = self.emb_g(sid).unsqueeze(-1)  # [b, h, 1]
-
+        g = speaker_emb.transpose(1,2)            
         # language embedding
         lang_emb = None
         if self.args.use_language_embedding and lid is not None:
             lang_emb = self.emb_l(lid).unsqueeze(-1)
-        print("starting encodings")
+
+        print("starting encodings  SIZE", x.shape, x_lengths.shape)
         x, m_p, logs_p, x_mask = self.text_encoder(x, x_lengths, lang_emb=lang_emb)
         print("text done")
         # posterior encoder
@@ -1039,18 +1066,33 @@ class Vits(BaseTTS):
         )
 
         if self.args.use_speaker_encoder_as_loss and self.speaker_manager.encoder is not None:
-            # concate generated and GT waveforms
-            wavs_batch = torch.cat((wav_seg, o), dim=0)
-
             # resample audio to speaker encoder sample_rate
             # pylint: disable=W0105
             if self.audio_transform is not None:
-                wavs_batch = self.audio_transform(wavs_batch)
+                wav_seg = self.audio_transform(wav_seg)
+                o = self.audio_transform(o)
+            print("GT waveform has shape ", wav_seg.shape)
+            print("Generated waveform has shape: ", o.shape)
 
-            pred_embs = self.speaker_manager.encoder.forward(wavs_batch, l2_norm=True)
+            mel_spec_seg = self.speaker_ap.melspectrogram(wav_seg.cpu().detach().numpy())
+            mel_spec_seg = torch.FloatTensor(mel_spec_seg).cuda()
+            mel_spec_seg.requires_grad = True # it was previously dettached
 
-            # split generated and GT speaker embeddings
-            gt_spk_emb, syn_spk_emb = torch.chunk(pred_embs, 2, dim=0)
+            mel_spec_o= self.speaker_ap.melspectrogram(o.cpu().detach().numpy())
+            mel_spec_o = torch.FloatTensor(mel_spec_o).cuda()
+            mel_spec_o.requires_grad = True
+            
+            print("GT and generated mel spec with shapes: ", mel_spec_seg.shape, mel_spec_o.shape)
+
+            # DxBx1xT -> Turn to BxTxD = BxTx80
+            mel_spec_seg = mel_spec_seg.squeeze().permute(1, 2, 0)
+            mel_spec_o = mel_spec_o.squeeze().permute(1,2,0)
+            print("MEL_SPEC: ", mel_spec_seg.shape, mel_spec_o.shape)
+
+
+            gt_spk_emb = self.speaker_manager.encoder.compute_speaker_reference(mel_spec_seg)#, seq_lens=mel_spec_seg.shape[1])
+            syn_spk_emb = self.speaker_manager.encoder.compute_speaker_reference(mel_spec_o)#, seq_lens=mel_spec_o.shape[1])
+            print("gtsynemb with shapes: ", gt_spk_emb.shape, syn_spk_emb.shape)
         else:
             gt_spk_emb, syn_spk_emb = None, None
 
@@ -1082,6 +1124,7 @@ class Vits(BaseTTS):
     def inference(
         self,
         x,
+        speaker_emb,
         aux_input={"x_lengths": None, "d_vectors": None, "speaker_ids": None, "language_ids": None, "durations": None},
     ):  # pylint: disable=dangerous-default-value
         """
@@ -1104,7 +1147,6 @@ class Vits(BaseTTS):
         """
         sid, g, lid, durations = self._set_cond_input(aux_input)
         x_lengths = self._set_x_lengths(x, aux_input)
-
         # speaker embedding
         if self.args.use_speaker_embedding and sid is not None:
             g = self.emb_g(sid).unsqueeze(-1)
@@ -1113,11 +1155,13 @@ class Vits(BaseTTS):
         lang_emb = None
         if self.args.use_language_embedding and lid is not None:
             lang_emb = self.emb_l(lid).unsqueeze(-1)
-
+        
+        g = speaker_emb
         x, m_p, logs_p, x_mask = self.text_encoder(x, x_lengths, lang_emb=lang_emb)
 
         if durations is None:
             if self.args.use_sdp:
+                print(g.shape)
                 logw = self.duration_predictor(
                     x,
                     x_mask,
@@ -1134,7 +1178,7 @@ class Vits(BaseTTS):
         else:
             assert durations.shape[-1] == x.shape[-1]
             w = durations.unsqueeze(0)
-
+        print("pred done")
         w_ceil = torch.ceil(w)
         y_lengths = torch.clamp_min(torch.sum(w_ceil, [1, 2]), 1).long()
         y_mask = sequence_mask(y_lengths, None).to(x_mask.dtype).unsqueeze(1)  # [B, 1, T_dec]
@@ -1147,7 +1191,7 @@ class Vits(BaseTTS):
 
         z_p = m_p + torch.randn_like(m_p) * torch.exp(logs_p) * self.inference_noise_scale
         z = self.flow(z_p, y_mask, g=g, reverse=True)
-
+        print("flow donde")
         # upsampling if needed
         z, _, _, y_mask = self.upsampling_z(z, y_lengths=y_lengths, y_mask=y_mask)
 
@@ -1231,32 +1275,37 @@ class Vits(BaseTTS):
         Returns:
             Tuple[Dict, Dict]: Model ouputs and computed losses.
         """
-
         spec_lens = batch["spec_lens"]
 
         if optimizer_idx == 0:
             tokens = batch["tokens"]
             token_lenghts = batch["token_lens"]
             spec = batch["spec"]
-            # CAMBIO MIO
+            speaker_emb = batch["speaker_emb"]
+
+            #wav_refs = batch["wav_refs"] # list of waveforms
+            #len_refs = batch["len_refs"] # list of durations
+            #path_refs = batch["path_refs"]
             #d_vectors = batch["d_vectors"]
             #speaker_ids = batch["speaker_ids"]
             #language_ids = batch["language_ids"]
+
             waveform = batch["waveform"]
             print("starting forward")
             # generator pass
             outputs = self.forward(
-                tokens,
-                token_lenghts,
-                spec,
-                spec_lens,
-                waveform,
+                    tokens,
+                    token_lenghts,
+                    spec,
+                    spec_lens,
+                    waveform,
+                    speaker_emb
                 #aux_input={"d_vectors": d_vectors, "speaker_ids": speaker_ids, "language_ids": language_ids}, # CAMBIO MIO
-            )
+            )   
             print("end forward")
             # cache tensors for the generator pass
             self.model_outputs_cache = outputs  # pylint: disable=attribute-defined-outside-init
-
+            print("OUTPUTS: ", outputs["model_outputs"].shape, outputs["waveform_seg"].shape)
             # compute scores and features
             scores_disc_fake, _, scores_disc_real, _ = self.disc(
                 outputs["model_outputs"].detach(), outputs["waveform_seg"]
@@ -1465,7 +1514,7 @@ class Vits(BaseTTS):
         d_vectors = None
 
         # get numerical speaker ids from speaker names
-        if self.speaker_manager is not None and self.speaker_manager.name_to_id and self.args.use_speaker_embedding:
+        if self.speaker_manager is not None and self.speaker_manager.name_to_id:#  and self.args.use_speaker_embedding: CAMBIO MIO
             speaker_ids = [self.speaker_manager.name_to_id[sn] for sn in batch["speaker_names"]]
 
         if speaker_ids is not None:
