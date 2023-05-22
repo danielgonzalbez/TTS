@@ -298,6 +298,7 @@ class TestVits(unittest.TestCase):
         input_dummy, *_ = self._create_inputs(config, batch_size=batch_size)
         outputs = model.inference(input_dummy)
         self._check_inference_outputs(config, outputs, input_dummy, batch_size=batch_size)
+        
 
         batch_size = 2
         input_dummy, input_lengths, *_ = self._create_inputs(config, batch_size=batch_size)

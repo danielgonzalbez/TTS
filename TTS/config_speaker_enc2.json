@@ -1,0 +1,12 @@
+{
+    "model": "speaker_encoder",
+    "model_params": {
+        "model_name": "resnet",
+        "input_dim": 64,
+        "proj_dim": 512,
+        "layers": [3, 4, 6, 3],
+        "num_filters": [32, 64, 128, 256],
+        "encoder_type": "ASP"
+    }
+
+}

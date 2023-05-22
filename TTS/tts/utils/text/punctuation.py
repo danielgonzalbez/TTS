@@ -127,6 +127,7 @@ class Punctuation:
             ['This is', 'example'], ['.', '!'] -> "This is. example!"
 
         """
+        #print("IN RESTORE ", text, puncs)
         return cls._restore(text, puncs, 0)
 
     @classmethod
@@ -142,9 +143,11 @@ class Punctuation:
         current = puncs[0]
 
         if current.position == PuncPosition.BEGIN:
+            #print("ARRIVED TO THE BEGIN: ", [current.punc + text[0]]+ text[1:])
             return cls._restore([current.punc + text[0]] + text[1:], puncs[1:], num)
 
         if current.position == PuncPosition.END:
+            #print("ARRIVED TO THE END: ", [text[0] + current.punc])
             return [text[0] + current.punc] + cls._restore(text[1:], puncs[1:], num + 1)
 
         if current.position == PuncPosition.ALONE:

@@ -7,6 +7,11 @@ from typing import List
 
 import pandas as pd
 from tqdm import tqdm
+import random 
+import wave
+import torchaudio
+import time
+import torch
 
 #########################
 # DATASETS
@@ -606,10 +611,49 @@ def kss(root_path, meta_file, **kwargs):  # pylint: disable=unused-argument
 
 # ===================================== OWN DATASETS =================================================
 
+def check_length(filename, lengths):
+    """Given the name of a file and a dictionary with the lengths of the already checked files, 
+    returns the length of the audio signal"""
+    if filename in lengths.keys():
+        return lengths[filename]
+    # not previously computed: we compute its length and save it
+    waveform, sr = torchaudio.load(filename)
+    lengths[filename] = (len(waveform[0])/sr, waveform[0])
+    return lengths[filename]
+        
+def select_random_audios(path, filenames, file_text, lengths_files):
+    """
+    Given a path, a list of filenames, a concrete filename inside that list and a dictionary 
+    with filenames as keys and duration of the files as values, returns a list of dictionaries with 2
+    keys (file and duration). The sum of the lengths of the files stored in the dictionary must be 
+    between 40 and 60 seconds.
+    """
+    speaker_references = []
+    total_duration = 0
+    seed = time.clock()
+    random.seed(seed)
+    while(total_duration < 40):
+        idx = random.randint(0, len(filenames)-1) # choose a random file inside the speaker folder
+        if filenames[idx] != 'metadata_norm.txt' and file_text + '.wav' != filenames[idx]: # we can't choose the same audio file for encoding the speaker's voice
+            duration, wav = check_length(filenames[idx], lengths_files)
+            if total_duration + duration <= 60:
+                total_duration += duration
+                speaker_references.append({"file": path + '/' + filenames[idx], "duration": duration, "wav": wav})
+    return total_duration, speaker_references
+
+
+
 def tcstar(root_path, meta_file='metadata_norm.txt', **kwargs):
-    FOLDERS = ['72_norm', '73_norm', '75_norm', '76_norm', '79_norm', '80_norm']
+    FOLDERS_REF = ['72_ref', '73_ref', '75_ref', '76_ref', '79_ref', '80_ref']
+    spk_emb = {'72_ref':'T6B72110122_lstm.pt', '73_ref':'T6B73110153_lstm.pt', '75_ref':'T6E75400175_lstm.pt', '76_ref':'T6V76110088_lstm.pt', '79_ref':'T6E79400175_lstm.pt', '80_ref':'T6V80110153_lstm.pt'}
+    FOLDERS = ['72_norm2','73_norm2', '75_norm2', '76_norm2', '79_norm2', '80_norm2']
     items = []
-    for folder in FOLDERS:
+    max_duration = 0 # max signal length used for speaker encoding
+    for i, folder in enumerate(FOLDERS):
+        os.chdir(root_path + '/'+ FOLDERS_REF[i])
+        speaker_emb = torch.load(root_path + '/' + FOLDERS_REF[i] + '/' + spk_emb[FOLDERS_REF[i]])
+        print("Processing ", folder, ".\n")
+        lengths_files = {}
         txt_file = os.path.join(root_path + '/' + folder, meta_file)
         text = open(txt_file, 'r')
         lines = text.readlines()
@@ -618,6 +662,126 @@ def tcstar(root_path, meta_file='metadata_norm.txt', **kwargs):
         for line in lines:
             file_text, text = line.split('|')
             if file_text + '.wav' in filenames: # there have been some transcripts and audio files deleted in preprocessing
-                items.append({"text": text, "audio_file": root_path + '/' + folder + '/' + file_text + '.wav', "speaker_name": folder, "root_path": root_path})
-        return items
+                #max_duration_sample, speaker_references = select_random_audios(root_path+'/'+folder, filenames, file_text, lengths_files)
+                #max_duration = max(max_duration, max_duration_sample)
+                items.append({"text": text, "audio_file": root_path + '/' + folder + '/' + file_text + '.wav', "speaker_name": folder, "root_path": root_path, "speaker_emb": speaker_emb, "language_id":0})
+    print("Finished processing TCSTAR database. The biggest speaker reference is of ", max_duration, " seconds.")
+    return items
+
+
+def tcstar2(root_path, meta_file='metadata_norm.txt', **kwargs):
+    FOLDERS_REF = ['72_ref', '73_ref', '75_ref', '76_ref', '79_ref', '80_ref']
+    spk_emb = {'72_ref':'T6B72110122_lstm.pt', '73_ref':'T6B73110153_lstm.pt', '75_ref':'T6E75400175_lstm.pt', '76_ref':'T6V76110088_lstm.pt', '79_ref':'T6E79400175_lstm.pt', '80_ref':'T6V80110153_lstm.pt'}
+    FOLDERS = ['72_norm2','73_norm2', '75_norm2', '76_norm2', '79_norm2', '80_norm2']
+    items = []
+    max_duration = 0 # max signal length used for speaker encoding
+    for i, folder in enumerate(FOLDERS):
+        os.chdir(root_path + '/'+ FOLDERS_REF[i])
+        #speaker_emb = torch.load(root_path + '/' + FOLDERS_REF[i] + '/' + spk_emb[FOLDERS_REF[i]])
+        print("Processing ", folder, ".\n")
+        lengths_files = {}
+        txt_file = os.path.join(root_path + '/' + folder, meta_file)
+        text = open(txt_file, 'r')
+        lines = text.readlines()
+        os.chdir(root_path + '/'+ folder)
+        filenames = sorted(os.listdir())
+        for line in lines:
+            file_text, text = line.split('|')
+            if file_text + '.wav' in filenames: # there have been some transcripts and audio files deleted in preprocessing
+                #max_duration_sample, speaker_references = select_random_audios(root_path+'/'+folder, filenames, file_text, lengths_files)
+                #max_duration = max(max_duration, max_duration_sample)
+                items.append({"text": text, "audio_file": root_path + '/' + folder + '/' + file_text + '.wav', "speaker_name": folder[:-1], "root_path": root_path, "language_id":0})
+    print("Finished processing TCSTAR database. The biggest speaker reference is of ", max_duration, " seconds.")
+    return items
+
+
+def tcstar_long(root_path, meta_file='metadata_norm.txt', **kwargs):
+    # Hasta 40 segundos de audio
+    FOLDERS_REF = ['72_ref', '73_ref', '75_ref', '76_ref', '79_ref', '80_ref']
+    spk_emb = {'72_ref':'T6B72110122_lstm.pt', '73_ref':'T6B73110153_lstm.pt', '75_ref':'T6E75400175_lstm.pt', '76_ref':'T6V76110088_lstm.pt', '79_ref':'T6E79400175_lstm.pt', '80_ref':'T6V80110153_lstm.pt'}
+    FOLDERS = ['72_norm','73_norm', '75_norm', '76_norm', '79_norm', '80_norm']
+    items = []
+    max_duration = 0 # max signal length used for speaker encoding
+    for i, folder in enumerate(FOLDERS):
+        os.chdir(root_path + '/'+ FOLDERS_REF[i])
+        speaker_emb = torch.load(root_path + '/' + FOLDERS_REF[i] + '/' + spk_emb[FOLDERS_REF[i]])
+        print("Processing ", folder, ".\n")
+        lengths_files = {}
+        txt_file = os.path.join(root_path + '/' + folder, meta_file)
+        text = open(txt_file, 'r')
+        lines = text.readlines()
+        os.chdir(root_path + '/'+ folder)
+        filenames = sorted(os.listdir())
+        for line in lines:
+            file_text, text = line.split('|')
+            if file_text + '.wav' in filenames: # there have been some transcripts and audio files deleted in preprocessing
+                #max_duration_sample, speaker_references = select_random_audios(root_path+'/'+folder, filenames, file_text, lengths_files)
+                #max_duration = max(max_duration, max_duration_sample)
+                items.append({"text": text, "audio_file": root_path + '/' + folder + '/' + file_text + '.wav', "speaker_name": folder, "root_path": root_path, "language_id":0})
+    print("Finished processing TCSTAR database. The biggest speaker reference is of ", max_duration, " seconds.")
+    return items
+
+
+def tcstar3(root_path, meta_file='metadata_norm.txt', **kwargs):
+    # Hasta 18 segundos de audio 
+    FOLDERS = ['72_norm3','73_norm3', '75_norm3', '76_norm3', '79_norm3', '80_norm3']
+    items = []
+    max_duration = 0 # max signal length used for speaker encoding
+    for i, folder in enumerate(FOLDERS):
+        print("Processing ", folder, ".\n")
+        lengths_files = {}
+        txt_file = os.path.join(root_path + '/' + folder, meta_file)
+        text = open(txt_file, 'r')
+        lines = text.readlines()
+        os.chdir(root_path + '/'+ folder)
+        filenames = sorted(os.listdir())
+        for line in lines:
+            file_text, text = line.split('|')
+            if file_text + '.wav' in filenames: # there have been some transcripts and audio files deleted in preprocessing
+                items.append({"text": text, "audio_file": root_path + '/' + folder + '/' + file_text + '.wav', "speaker_name": folder[:-1], "root_path": root_path, "language_id":0})
+    print("Finished processing TCSTAR database.")
+    return items
+
+
+def tcstar2_short(root_path, meta_file='metadata_norm.txt', **kwargs):
+    # Hasta 18 segundos de audio 
+    FOLDERS = ['72_norm2']
+    items = []
+    max_duration = 0 # max signal length used for speaker encoding
+    for i, folder in enumerate(FOLDERS):
+        #speaker_emb = torch.load(root_path + '/' + FOLDERS_REF[i] + '/' + spk_emb[FOLDERS_REF[i]])
+        print("Processing ", folder, ".\n")
+        lengths_files = {}
+        txt_file = os.path.join(root_path + '/' + folder, meta_file)
+        text = open(txt_file, 'r')
+        lines = text.readlines()
+        os.chdir(root_path + '/'+ folder)
+        filenames = sorted(os.listdir())
+        for line in lines:
+            file_text, text = line.split('|')
+            if file_text + '.wav' in filenames: # there have been some transcripts and audio files deleted in preprocessing
+                #max_duration_sample, speaker_references = select_random_audios(root_path+'/'+folder, filenames, file_text, lengths_files)
+                #max_duration = max(max_duration, max_duration_sample)
+                items.append({"text": text, "audio_file": root_path + '/' + folder + '/' + file_text + '.wav', "speaker_name": folder[:-1], "root_path": root_path, "language_id":0})
+    print("Finished processing TCSTAR database. The biggest speaker reference is of ", max_duration, " seconds.")
+    return items
+
+def fescat3(root_path, meta_file='metadata_norm.txt', **kwargs):
+    # Hasta 18 segundos de audio 
+    FOLDERS = ['f1_norm3', 'f2_norm3', 'f3_norm3', 'f4_norm3', 'f5_norm3', 'm1_norm3', 'm2_norm3', 'm3_norm3', 'm4_norm3', 'm5_norm3', 'm6_norm3']
+    items = []
+    for i, folder in enumerate(FOLDERS):
+        print("Processing ", folder, ".\n")
+        lengths_files = {}
+        txt_file = os.path.join(root_path + '/' + folder, meta_file)
+        text = open(txt_file, 'r')
+        lines = text.readlines()
+        os.chdir(root_path + '/'+ folder)
+        filenames = sorted(os.listdir())
+        for line in lines:
+            file_text, text = line.split('|')
+            items.append({"text": text, "audio_file": root_path + '/' + folder + '/' + file_text + '.wav', "speaker_name": folder[:-1], "root_path": root_path, "language": 'cat'})
+    print("Finished processing festcat database.")
+    return items
+
 

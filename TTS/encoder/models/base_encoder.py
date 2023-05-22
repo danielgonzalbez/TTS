@@ -71,8 +71,8 @@ class BaseEncoder(nn.Module):
         x: 1xTxD
         """
         # map to the waveform size
-        if self.use_torch_spec:
-            num_frames = num_frames * self.audio_config["hop_length"]
+        #if self.use_torch_spec:
+        num_frames = num_frames * self.audio_config["hop_length"]
 
         max_len = x.shape[1]
 

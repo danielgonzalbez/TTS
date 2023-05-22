@@ -87,7 +87,6 @@ class Gruut(BasePhonemizer):
                 elif word.phonemes:
                     # Add phonemes for word
                     word_phonemes = []
-
                     for word_phoneme in word.phonemes:
                         if not self.keep_stress:
                             # Remove primary/secondary stress

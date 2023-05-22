@@ -69,6 +69,7 @@ def get_module_weights_sum(mdl: nn.Module):
 
 def load_audio(file_path):
     """Load the audio file normalized in [-1, 1]
+
     Return Shapes:
         - x: :math:`[1, T]`
     """
@@ -99,6 +100,7 @@ def wav_to_spec(y, n_fft, hop_length, win_length, center=False):
     """
     Args Shapes:
         - y : :math:`[B, 1, T]`
+
     Return Shapes:
         - spec : :math:`[B,C,T]`
     """
@@ -143,6 +145,7 @@ def spec_to_mel(spec, n_fft, num_mels, sample_rate, fmin, fmax):
     """
     Args Shapes:
         - spec : :math:`[B,C,T]`
+
     Return Shapes:
         - mel : :math:`[B,C,T]`
     """
@@ -161,6 +164,7 @@ def wav_to_mel(y, n_fft, num_mels, sample_rate, hop_length, win_length, fmin, fm
     """
     Args Shapes:
         - y : :math:`[B, 1, T]`
+
     Return Shapes:
         - spec : :math:`[B,C,T]`
     """
@@ -268,9 +272,7 @@ class VitsDataset(TTSDataset):
                 wav = wav[:, : -int(wav.size(1) % self.model_args.encoder_sample_rate)]
 
         wav_filename = os.path.basename(item["audio_file"])
-
         token_ids = self.get_token_ids(idx, item["text"])
-
         # after phonemization the text length may change
         # this is a shameful 🤭 hack to prevent longer phonemes
         # TODO: find a better fix
@@ -278,15 +280,13 @@ class VitsDataset(TTSDataset):
             self.rescue_item_idx += 1
             return self.__getitem__(self.rescue_item_idx)
 
-        #speaker_emb = item["speaker_emb"]
-
         return {
             "raw_text": raw_text,
             "token_ids": token_ids,
             "token_len": len(token_ids),
             "wav": wav,
             "wav_file": wav_filename,
-            "speaker_name": item["speaker_name"]
+            "speaker_name": item["speaker_name"],
         }
 
     @property
@@ -362,123 +362,180 @@ class VitsDataset(TTSDataset):
 @dataclass
 class VitsArgs(Coqpit):
     """VITS model arguments.
+
     Args:
+
         num_chars (int):
             Number of characters in the vocabulary. Defaults to 100.
+
         out_channels (int):
             Number of output channels of the decoder. Defaults to 513.
+
         spec_segment_size (int):
             Decoder input segment size. Defaults to 32 `(32 * hoplength = waveform length)`.
+
         hidden_channels (int):
             Number of hidden channels of the model. Defaults to 192.
+
         hidden_channels_ffn_text_encoder (int):
             Number of hidden channels of the feed-forward layers of the text encoder transformer. Defaults to 256.
+
         num_heads_text_encoder (int):
             Number of attention heads of the text encoder transformer. Defaults to 2.
+
         num_layers_text_encoder (int):
             Number of transformer layers in the text encoder. Defaults to 6.
+
         kernel_size_text_encoder (int):
             Kernel size of the text encoder transformer FFN layers. Defaults to 3.
+
         dropout_p_text_encoder (float):
             Dropout rate of the text encoder. Defaults to 0.1.
+
         dropout_p_duration_predictor (float):
             Dropout rate of the duration predictor. Defaults to 0.1.
+
         kernel_size_posterior_encoder (int):
             Kernel size of the posterior encoder's WaveNet layers. Defaults to 5.
+
         dilatation_posterior_encoder (int):
             Dilation rate of the posterior encoder's WaveNet layers. Defaults to 1.
+
         num_layers_posterior_encoder (int):
             Number of posterior encoder's WaveNet layers. Defaults to 16.
+
         kernel_size_flow (int):
             Kernel size of the Residual Coupling layers of the flow network. Defaults to 5.
+
         dilatation_flow (int):
             Dilation rate of the Residual Coupling WaveNet layers of the flow network. Defaults to 1.
+
         num_layers_flow (int):
             Number of Residual Coupling WaveNet layers of the flow network. Defaults to 6.
+
         resblock_type_decoder (str):
             Type of the residual block in the decoder network. Defaults to "1".
+
         resblock_kernel_sizes_decoder (List[int]):
             Kernel sizes of the residual blocks in the decoder network. Defaults to `[3, 7, 11]`.
+
         resblock_dilation_sizes_decoder (List[List[int]]):
             Dilation sizes of the residual blocks in the decoder network. Defaults to `[[1, 3, 5], [1, 3, 5], [1, 3, 5]]`.
+
         upsample_rates_decoder (List[int]):
             Upsampling rates for each concecutive upsampling layer in the decoder network. The multiply of these
             values must be equal to the kop length used for computing spectrograms. Defaults to `[8, 8, 2, 2]`.
+
         upsample_initial_channel_decoder (int):
             Number of hidden channels of the first upsampling convolution layer of the decoder network. Defaults to 512.
+
         upsample_kernel_sizes_decoder (List[int]):
             Kernel sizes for each upsampling layer of the decoder network. Defaults to `[16, 16, 4, 4]`.
+
         periods_multi_period_discriminator (List[int]):
             Periods values for Vits Multi-Period Discriminator. Defaults to `[2, 3, 5, 7, 11]`.
+
         use_sdp (bool):
             Use Stochastic Duration Predictor. Defaults to True.
+
         noise_scale (float):
             Noise scale used for the sample noise tensor in training. Defaults to 1.0.
+
         inference_noise_scale (float):
             Noise scale used for the sample noise tensor in inference. Defaults to 0.667.
+
         length_scale (float):
             Scale factor for the predicted duration values. Smaller values result faster speech. Defaults to 1.
+
         noise_scale_dp (float):
             Noise scale used by the Stochastic Duration Predictor sample noise in training. Defaults to 1.0.
+
         inference_noise_scale_dp (float):
             Noise scale for the Stochastic Duration Predictor in inference. Defaults to 0.8.
+
         max_inference_len (int):
             Maximum inference length to limit the memory use. Defaults to None.
+
         init_discriminator (bool):
             Initialize the disciminator network if set True. Set False for inference. Defaults to True.
+
         use_spectral_norm_disriminator (bool):
             Use spectral normalization over weight norm in the discriminator. Defaults to False.
+
         use_speaker_embedding (bool):
             Enable/Disable speaker embedding for multi-speaker models. Defaults to False.
+
         num_speakers (int):
             Number of speakers for the speaker embedding layer. Defaults to 0.
+
         speakers_file (str):
             Path to the speaker mapping file for the Speaker Manager. Defaults to None.
+
         speaker_embedding_channels (int):
             Number of speaker embedding channels. Defaults to 256.
+
         use_d_vector_file (bool):
             Enable/Disable the use of d-vectors for multi-speaker training. Defaults to False.
+
         d_vector_file (List[str]):
             List of paths to the files including pre-computed speaker embeddings. Defaults to None.
+
         d_vector_dim (int):
             Number of d-vector channels. Defaults to 0.
+
         detach_dp_input (bool):
             Detach duration predictor's input from the network for stopping the gradients. Defaults to True.
+
         use_language_embedding (bool):
             Enable/Disable language embedding for multilingual models. Defaults to False.
+
         embedded_language_dim (int):
             Number of language embedding channels. Defaults to 4.
+
         num_languages (int):
             Number of languages for the language embedding layer. Defaults to 0.
+
         language_ids_file (str):
             Path to the language mapping file for the Language Manager. Defaults to None.
+
         use_speaker_encoder_as_loss (bool):
             Enable/Disable Speaker Consistency Loss (SCL). Defaults to False.
+
         speaker_encoder_config_path (str):
             Path to the file speaker encoder config file, to use for SCL. Defaults to "".
+
         speaker_encoder_model_path (str):
             Path to the file speaker encoder checkpoint file, to use for SCL. Defaults to "".
+
         condition_dp_on_speaker (bool):
             Condition the duration predictor on the speaker embedding. Defaults to True.
+
         freeze_encoder (bool):
             Freeze the encoder weigths during training. Defaults to False.
+
         freeze_DP (bool):
             Freeze the duration predictor weigths during training. Defaults to False.
+
         freeze_PE (bool):
             Freeze the posterior encoder weigths during training. Defaults to False.
+
         freeze_flow_encoder (bool):
             Freeze the flow encoder weigths during training. Defaults to False.
+
         freeze_waveform_decoder (bool):
             Freeze the waveform decoder weigths during training. Defaults to False.
+
         encoder_sample_rate (int):
             If not None this sample rate will be used for training the Posterior Encoder,
             flow, text_encoder and duration predictor. The decoder part (vocoder) will be
             trained with the `config.audio.sample_rate`. Defaults to None.
+
         interpolate_z (bool):
             If `encoder_sample_rate` not None and  this parameter True the nearest interpolation
             will be used to upsampling the latent variable z with the sampling rate `encoder_sample_rate`
             to the `config.audio.sample_rate`. If it is False you will need to add extra
             `upsample_rates_decoder` to match the shape. Defaults to True.
+
     """
 
     num_chars: int = 100
@@ -542,8 +599,10 @@ class VitsArgs(Coqpit):
 
 class Vits(BaseTTS):
     """VITS TTS model
+
     Paper::
         https://arxiv.org/pdf/2106.06103.pdf
+
     Paper Abstract::
         Several recent end-to-end text-to-speech (TTS) models enabling single-stage training and parallel
         sampling have been proposed, but their sample quality does not match that of two-stage TTS systems.
@@ -556,7 +615,9 @@ class Vits(BaseTTS):
         with different pitches and rhythms. A subjective human evaluation (mean opinion score, or MOS)
         on the LJ Speech, a single speaker dataset, shows that our method outperforms the best publicly
         available TTS systems and achieves a MOS comparable to ground truth.
+
     Check :class:`TTS.tts.configs.vits_config.VitsConfig` for class arguments.
+
     Examples:
         >>> from TTS.tts.configs.vits_config import VitsConfig
         >>> from TTS.tts.models.vits import Vits
@@ -573,6 +634,7 @@ class Vits(BaseTTS):
         language_manager: LanguageManager = None,
     ):
         super().__init__(config, ap, tokenizer, speaker_manager, language_manager)
+
         self.init_multispeaker(config)
         self.init_multilingual(config)
         self.init_upsampling()
@@ -584,8 +646,6 @@ class Vits(BaseTTS):
         self.noise_scale_dp = self.args.noise_scale_dp
         self.max_inference_len = self.args.max_inference_len
         self.spec_segment_size = self.args.spec_segment_size
-
-        #self.embedded_speaker_dim = 256
 
         self.text_encoder = TextEncoder(
             self.args.num_chars,
@@ -660,9 +720,9 @@ class Vits(BaseTTS):
                 use_spectral_norm=self.args.use_spectral_norm_disriminator,
             )
         
-        #self.speaker_config = load_config(config.model_args.speaker_encoder_config_path)
+        self.speaker_config = load_config(config.model_args.speaker_encoder_config_path)
         
-        #self.speaker_ap = AudioProcessor.init_from_config(self.speaker_config.audio)
+        self.speaker_ap = AudioProcessor.init_from_config(self.speaker_config.audio)
         
     @property
     def device(self):
@@ -671,7 +731,9 @@ class Vits(BaseTTS):
     def init_multispeaker(self, config: Coqpit):
         """Initialize multi-speaker modules of a model. A model can be trained either with a speaker embedding layer
         or with external `d_vectors` computed from a speaker encoder model.
+
         You must provide a `speaker_manager` at initialization to set up the multi-speaker modules.
+
         Args:
             config (Coqpit): Model configuration.
             data (List, optional): Dataset items to infer number of speakers. Defaults to None.
@@ -679,10 +741,11 @@ class Vits(BaseTTS):
         self.embedded_speaker_dim = 0
         self.num_speakers = self.args.num_speakers
         self.audio_transform = None
+
         if self.speaker_manager:
             self.num_speakers = self.speaker_manager.num_speakers
+
         if self.args.use_speaker_embedding:
-            print("INIT SPEAKER")
             self._init_speaker_embedding()
 
         if self.args.use_d_vector_file:
@@ -697,7 +760,7 @@ class Vits(BaseTTS):
                     " [!] To use the speaker consistency loss (SCL) you need to specify speaker_encoder_model_path and speaker_encoder_config_path !!"
                 )
             self.speaker_manager.encoder.eval()
-            print(" > External Speaker Encoder Loaded !!!")
+            print(" > External Speaker Encoder Loaded !!")
 
             if (
                 hasattr(self.speaker_manager.encoder, "audio_config")
@@ -710,13 +773,10 @@ class Vits(BaseTTS):
 
     def _init_speaker_embedding(self):
         # pylint: disable=attribute-defined-outside-init
-        print("INIT SPEAKER", self.num_speakers)
         if self.num_speakers > 0:
             print(" > initialization of speaker-embedding layers.")
-
             self.embedded_speaker_dim = self.args.speaker_embedding_channels
             self.emb_g = nn.Embedding(self.num_speakers, self.embedded_speaker_dim)
-            
 
     def _init_d_vector(self):
         # pylint: disable=attribute-defined-outside-init
@@ -726,6 +786,7 @@ class Vits(BaseTTS):
 
     def init_multilingual(self, config: Coqpit):
         """Initialize multilingual modules of a model.
+
         Args:
             config (Coqpit): Model configuration.
         """
@@ -793,6 +854,10 @@ class Vits(BaseTTS):
                 for param in self.emb_l.parameters():
                     param.requires_grad = False
 
+        if hasattr(self, "emb_g"): # AÑADIDO EN LA COMPARACIÓN
+            for param in self.emb_g.parameters():
+                param.requires_grad = False
+
         if self.args.freeze_PE:
             for param in self.posterior_encoder.parameters():
                 param.requires_grad = False
@@ -808,8 +873,10 @@ class Vits(BaseTTS):
         if self.args.freeze_waveform_decoder:
             for param in self.waveform_decoder.parameters():
                 param.requires_grad = False
+        # Freeze speaker encoder layers
+        for param in self.speaker_manager.encoder.parameters():
+            param.requires_grad = False
 
-        
     @staticmethod
     def _set_cond_input(aux_input: Dict):
         """Set the speaker conditioning input based on the multi-speaker mode."""
@@ -819,9 +886,15 @@ class Vits(BaseTTS):
             if sid.ndim == 0:
                 sid = sid.unsqueeze_(0)
         if "d_vectors" in aux_input and aux_input["d_vectors"] is not None:
-            g = F.normalize(aux_input["d_vectors"]).unsqueeze(-1)
+            #print("d_vectors shape ", aux_input["d_vectors"].shape) # Bx1x256
+            #print("D_vectors", aux_input["d_vectors"])
+            try:
+                g = F.normalize(aux_input["d_vectors"], dim=2).unsqueeze(-1)
+            except:
+                g = F.normalize(aux_input["d_vectors"])
             if g.ndim == 2:
                 g = g.unsqueeze_(0)
+            #print("d_vectors shape 2 ", g.shape)
 
         if "language_ids" in aux_input and aux_input["language_ids"] is not None:
             lid = aux_input["language_ids"]
@@ -908,6 +981,7 @@ class Vits(BaseTTS):
         aux_input={"d_vectors": None, "speaker_ids": None, "language_ids": None},
     ) -> Dict:
         """Forward pass of the model.
+
         Args:
             x (torch.tensor): Batch of input character sequence IDs.
             x_lengths (torch.tensor): Batch of input character sequence lengths.
@@ -916,8 +990,10 @@ class Vits(BaseTTS):
             waveform (torch.tensor): Batch of ground truth waveforms per sample.
             aux_input (dict, optional): Auxiliary inputs for multi-speaker and multi-lingual training.
                 Defaults to {"d_vectors": None, "speaker_ids": None, "language_ids": None}.
+
         Returns:
             Dict: model outputs keyed by the output name.
+
         Shapes:
             - x: :math:`[B, T_seq]`
             - x_lengths: :math:`[B]`
@@ -925,7 +1001,9 @@ class Vits(BaseTTS):
             - y_lengths: :math:`[B]`
             - waveform: :math:`[B, 1, T_wav]`
             - speaker_emb: [B, 256]
+
             - language_ids: :math:`[B]`
+
         Return Shapes:
             - model_outputs: :math:`[B, 1, T_wav]`
             - alignments: :math:`[B, T_seq, T_dec]`
@@ -941,13 +1019,18 @@ class Vits(BaseTTS):
         """
         outputs = {}
         sid, g, lid, _ = self._set_cond_input(aux_input)
+
+        # speaker embedding
+        g = g.transpose(1,2) # Bx1x256x1 -> Bx256x1
+        # CAMBIO MIO: 
+        if g.shape[0] != 1: # Bx256x1x1 -> Bx256x1
+            g = g.squeeze().unsqueeze(2) 
+        else: # 1x256x1x1 -> 1x256x1
+            g = g.squeeze(2)
         # language embedding
         lang_emb = None
         if self.args.use_language_embedding and lid is not None:
             lang_emb = self.emb_l(lid).unsqueeze(-1)
-        
-        if self.args.use_speaker_embedding and sid is not None:
-            g = self.emb_g(sid).unsqueeze(-1)  # [b, h, 1]
         x, m_p, logs_p, x_mask = self.text_encoder(x, x_lengths, lang_emb=lang_emb)
         # posterior encoder
         z, m_q, logs_q, y_mask = self.posterior_encoder(y, y_lengths, g=g)
@@ -976,8 +1059,6 @@ class Vits(BaseTTS):
             if self.audio_transform is not None:
                 wav_seg = self.audio_transform(wav_seg)
                 o = self.audio_transform(o)
-            #print("GT waveform has shape ", wav_seg.shape)
-            #print("Generated waveform has shape: ", o.shape)
 
             mel_spec_seg = self.speaker_ap.melspectrogram(wav_seg.cpu().detach().numpy())
             mel_spec_seg = torch.FloatTensor(mel_spec_seg).cuda()
@@ -987,11 +1068,10 @@ class Vits(BaseTTS):
             mel_spec_o = torch.FloatTensor(mel_spec_o).cuda()
             mel_spec_o.requires_grad = True
             
-
             # DxBx1xT -> Turn to BxTxD = BxTx80
-            mel_spec_seg = mel_spec_seg.squeeze(2).permute(1, 2, 0)
-            mel_spec_o = mel_spec_o.squeeze(2).permute(1,2,0)
 
+            mel_spec_seg = mel_spec_seg.squeeze(2).permute(1,2,0)
+            mel_spec_o = mel_spec_o.squeeze(2).permute(1,2,0)
 
             gt_spk_emb = self.speaker_manager.encoder.compute_speaker_reference(mel_spec_seg)#, seq_lens=mel_spec_seg.shape[1])
             syn_spk_emb = self.speaker_manager.encoder.compute_speaker_reference(mel_spec_o)#, seq_lens=mel_spec_o.shape[1])
@@ -1031,11 +1111,13 @@ class Vits(BaseTTS):
         """
         Note:
             To run in batch mode, provide `x_lengths` else model assumes that the batch size is 1.
+
         Shapes:
             - x: :math:`[B, T_seq]`
             - x_lengths: :math:`[B]`
             - d_vectors: :math:`[B, C]`
             - speaker_ids: :math:`[B]`
+
         Return Shapes:
             - model_outputs: :math:`[B, 1, T_wav]`
             - alignments: :math:`[B, T_seq, T_dec]`
@@ -1045,18 +1127,18 @@ class Vits(BaseTTS):
             - logs_p: :math:`[B, C, T_dec]`
         """
         sid, g, lid, durations = self._set_cond_input(aux_input)
+        g = g.transpose(1,2)
+        #print("g in inference ", g)
+        # g shape: 1x256x1
         x_lengths = self._set_x_lengths(x, aux_input)
         # speaker embedding
         if self.args.use_speaker_embedding and sid is not None:
             g = self.emb_g(sid).unsqueeze(-1)
-        print(g)
-        print(g.shape)
+
         # language embedding
         lang_emb = None
         if self.args.use_language_embedding and lid is not None:
             lang_emb = self.emb_l(lid).unsqueeze(-1)
-        
-        
         x, m_p, logs_p, x_mask = self.text_encoder(x, x_lengths, lang_emb=lang_emb)
         if durations is None:
             if self.args.use_sdp:
@@ -1083,8 +1165,9 @@ class Vits(BaseTTS):
 
         try:
             attn = generate_path(w_ceil.squeeze(1), attn_mask.squeeze(1).transpose(1, 2))
-        except: # CAMBIO MIO 
+        except: # CAMBIO MIO para use_phonemes = True
             attn = generate_path(w_ceil.squeeze(1), attn_mask.transpose(1, 2))
+
         m_p = torch.matmul(attn.transpose(1, 2), m_p.transpose(1, 2)).transpose(1, 2)
         logs_p = torch.matmul(attn.transpose(1, 2), logs_p.transpose(1, 2)).transpose(1, 2)
 
@@ -1112,6 +1195,7 @@ class Vits(BaseTTS):
         self, reference_wav, speaker_id=None, d_vector=None, reference_speaker_id=None, reference_d_vector=None
     ):
         """Inference for voice conversion
+
         Args:
             reference_wav (Tensor): Reference wavform. Tensor of shape [B, T]
             speaker_id (Tensor): speaker_id of the target speaker. Tensor of shape [B]
@@ -1135,7 +1219,9 @@ class Vits(BaseTTS):
 
     def voice_conversion(self, y, y_lengths, speaker_cond_src, speaker_cond_tgt):
         """Forward pass for voice conversion
+
         TODO: create an end-point for voice conversion
+
         Args:
             y (Tensor): Reference spectrograms. Tensor of shape [B, T, C]
             y_lengths (Tensor): Length of each reference spectrogram. Tensor of shape [B]
@@ -1161,20 +1247,22 @@ class Vits(BaseTTS):
 
     def train_step(self, batch: dict, criterion: nn.Module, optimizer_idx: int) -> Tuple[Dict, Dict]:
         """Perform a single training step. Run the model forward pass and compute losses.
+
         Args:
             batch (Dict): Input tensors.
             criterion (nn.Module): Loss layer designed for the model.
             optimizer_idx (int): Index of optimizer to use. 0 for the generator and 1 for the discriminator networks.
+
         Returns:
             Tuple[Dict, Dict]: Model ouputs and computed losses.
         """
         spec_lens = batch["spec_lens"]
-
         if optimizer_idx == 0:
             tokens = batch["tokens"]
             token_lenghts = batch["token_lens"]
             spec = batch["spec"]
-            speaker_ids = batch["speaker_ids"] # CAMBIO NUEVO
+            d_vectors = batch["d_vectors"]
+            speaker_ids = batch["speaker_ids"]
             language_ids = batch["language_ids"]
             waveform = batch["waveform"]
             # generator pass
@@ -1184,7 +1272,7 @@ class Vits(BaseTTS):
                     spec,
                     spec_lens,
                     waveform,
-                    aux_input={"speaker_ids": speaker_ids} # CAMBIO MIO
+                aux_input={"d_vectors": d_vectors, "speaker_ids": speaker_ids, "language_ids": language_ids}, # CAMBIO MIO
             )   
             # cache tensors for the generator pass
             self.model_outputs_cache = outputs  # pylint: disable=attribute-defined-outside-init
@@ -1279,12 +1367,15 @@ class Vits(BaseTTS):
         self, batch: dict, outputs: dict, logger: "Logger", assets: dict, steps: int
     ):  # pylint: disable=no-self-use
         """Create visualizations and waveform examples.
+
         For example, here you can plot spectrograms and generate sample sample waveforms from these spectrograms to
         be projected onto Tensorboard.
+
         Args:
             ap (AudioProcessor): audio processor used at training.
             batch (Dict): Model inputs used at the previous training step.
             outputs (Dict): Model outputs generated at the previoud training step.
+
         Returns:
             Tuple[Dict, np.ndarray]: training plots and output waveform.
         """
@@ -1324,7 +1415,7 @@ class Vits(BaseTTS):
 
         # get speaker  id/d_vector
         speaker_id, d_vector, language_id = None, None, None
-        if hasattr(self, "speaker_manager") and self.speaker_manager is not None: # CAMBIO NUEVO MIO
+        if hasattr(self, "speaker_manager"):
             if config.use_d_vector_file:
                 if speaker_name is None:
                     d_vector = self.speaker_manager.get_random_embedding()
@@ -1352,7 +1443,9 @@ class Vits(BaseTTS):
     @torch.no_grad()
     def test_run(self, assets) -> Tuple[Dict, Dict]:
         """Generic test run for `tts` models used by `Trainer`.
+
         You can override this for a different behaviour.
+
         Returns:
             Tuple[Dict, Dict]: Test figures and audios to be projected to Tensorboard.
         """
@@ -1398,20 +1491,22 @@ class Vits(BaseTTS):
             speaker_ids = torch.LongTensor(speaker_ids)
             batch["speaker_ids"] = speaker_ids
 
-        # get d_vectors from audio file names
+        # get d_vectors from audio file names        
         if self.speaker_manager is not None and self.speaker_manager.embeddings and self.args.use_d_vector_file:
             d_vector_mapping = self.speaker_manager.embeddings
-            d_vectors = [d_vector_mapping[w]["embedding"] for w in batch["speaker_names"]]
+            d_vectors = [d_vector_mapping[w]["embedding"] for w in batch["speaker_names"]] # CAMBIO porque el identificador del audio es speaker_name
+            # 1x256
             d_vectors = torch.stack(d_vectors)
-
+            # Bx1x256
+            
         # get language ids from language names
         if self.language_manager is not None and self.language_manager.name_to_id and self.args.use_language_embedding:
             language_ids = [self.language_manager.name_to_id[ln] for ln in batch["language_names"]]
 
         if language_ids is not None:
             language_ids = torch.LongTensor(language_ids)
-
         batch["language_ids"] = language_ids
+        batch["d_vectors"] = d_vectors
         batch["speaker_ids"] = speaker_ids
         return batch
 
@@ -1587,6 +1682,7 @@ class Vits(BaseTTS):
 
     def get_lr(self) -> List:
         """Set the initial learning rates for each optimizer.
+
         Returns:
             List: learning rates for each optimizer.
         """
@@ -1594,8 +1690,10 @@ class Vits(BaseTTS):
 
     def get_scheduler(self, optimizer) -> List:
         """Set the schedulers for each optimizer.
+
         Args:
             optimizer (List[`torch.optim.Optimizer`]): List of optimizers.
+
         Returns:
             List: Schedulers, one for each optimizer.
         """
@@ -1627,8 +1725,8 @@ class Vits(BaseTTS):
             # audio resampler is not used in inference time
             self.audio_resampler = None
 
-        # handle fine-tuning from a checkpoint with additional speakers 
-        if hasattr(self, "emb_g") and state["model"]["emb_g.weight"].shape != self.emb_g.weight.shape and self.args.speaker_encoder_model_path is None:
+        # handle fine-tuning from a checkpoint with additional speakers
+        if hasattr(self, "emb_g") and state["model"]["emb_g.weight"].shape != self.emb_g.weight.shape:
             num_new_speakers = self.emb_g.weight.shape[0] - state["model"]["emb_g.weight"].shape[0]
             print(f" > Loading checkpoint with {num_new_speakers} additional speakers.")
             emb_g = state["model"]["emb_g.weight"]
@@ -1645,6 +1743,7 @@ class Vits(BaseTTS):
     @staticmethod
     def init_from_config(config: "VitsConfig", samples: Union[List[List], List[Dict]] = None, verbose=True):
         """Initiate model from config
+
         Args:
             config (VitsConfig): Model config.
             samples (Union[List[List], List[Dict]]): Training samples to parse speaker ids for training.

@@ -168,6 +168,7 @@ class ResNetSpeakerEncoder(BaseEncoder):
 
         if self.log_input:
             x = (x + 1e-6).log()
+        
         x = self.instancenorm(x).unsqueeze(1)
 
         x = self.conv1(x)

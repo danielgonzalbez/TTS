@@ -174,7 +174,13 @@ class RelativePositionMultiHeadAttention(nn.Module):
             -re: :math:`[H or 1, V, D]`
             -logits: :math:`[B, H, T, D]`
         """
-        logits = torch.matmul(p_attn, re.unsqueeze(0))
+        try:
+            logits = torch.matmul(p_attn, re.unsqueeze(0))
+        except:
+            #print("Changing p_attn, re in layers/glow_tts/transformer.py relative values", p_attn.dtype, re.dtype)
+            p_attn = p_attn.type(torch.HalfTensor).cuda()
+            re = re.type(torch.HalfTensor).cuda()
+            logits = torch.matmul(p_attn, re.unsqueeze(0))
         return logits
 
     @staticmethod
@@ -190,7 +196,14 @@ class RelativePositionMultiHeadAttention(nn.Module):
             - logits: :math:`[B, H, T, V]`
         """
         # logits = torch.einsum('bhld, kmd -> bhlm', [query, re.to(query.dtype)])
-        logits = torch.matmul(query, re.unsqueeze(0).transpose(-2, -1))
+        try:
+            logits = torch.matmul(query, re.unsqueeze(0).transpose(-2, -1))
+        except:
+            #print("Changing query/re in layers/glow_tts/transformer.py relative keys", query.dtype, re.dtype)
+            query = query.type(torch.HalfTensor).cuda()
+            re = re.type(torch.HalfTensor).cuda()
+            logits = torch.matmul(query, re.unsqueeze(0).transpose(-2, -1))
+
         return logits
 
     def _get_relative_embeddings(self, relative_embeddings, length):

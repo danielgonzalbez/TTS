@@ -50,14 +50,14 @@ class LayerNorm2(nn.Module):
     def forward(self, x):
         x = x.transpose(1, -1)
         type_orig = x.dtype
-        print("Here arrived", x.dtype)
         try:
             x = torch.nn.functional.layer_norm(x, (self.channels,), self.gamma, self.beta, self.eps)
         except:
+            #print("changing in normalization ", x.dtype)
             x = x.type(torch.float32)
             x = torch.nn.functional.layer_norm(x, (self.channels,), self.gamma, self.beta, self.eps)
             x = x.type(type_orig)
-        print("here arrived 2", x.dtype)
+            #print("changing in normalization ", x.dtype)
         return x.transpose(1, -1)
 
 

@@ -201,6 +201,8 @@ class EmbeddingManager(BaseIDManager):
                 embeddings_by_names[x["name"]] = [x["embedding"]]
             else:
                 embeddings_by_names[x["name"]].append(x["embedding"])
+        # Shape : 1x256
+        print("Original embeddings = ", [(x["embedding"].shape, x["name"]) for x in embeddings.values()])
         return name_to_id, clip_ids, embeddings, embeddings_by_names
 
     def load_embeddings_from_file(self, file_path: str) -> None:
@@ -324,7 +326,7 @@ class EmbeddingManager(BaseIDManager):
         self.encoder_config = load_config(config_path)
         self.encoder = setup_encoder_model(self.encoder_config)
         self.encoder_criterion = self.encoder.load_checkpoint(
-            self.encoder_config, model_path, eval=True, use_cuda=use_cuda, cache=True
+            self.encoder_config, model_path, eval=True, use_cuda=use_cuda, cache=True #True 
         )
         self.encoder_ap = AudioProcessor(**self.encoder_config.audio)
 
@@ -340,7 +342,7 @@ class EmbeddingManager(BaseIDManager):
 
         def _compute(wav_file: str):
             waveform = self.encoder_ap.load_wav(wav_file, sr=self.encoder_ap.sample_rate)
-            if not self.encoder_config.model_params.get("use_torch_spec", False):
+            if not self.encoder_config.model_params.get("use_torch_spec", True):
                 m_input = self.encoder_ap.melspectrogram(waveform)
                 m_input = torch.from_numpy(m_input)
             else:

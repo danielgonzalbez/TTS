@@ -5,7 +5,7 @@ from trainer import Trainer, TrainerArgs
 from TTS.tts.configs.shared_configs import BaseDatasetConfig
 from TTS.tts.configs.vits_config import VitsConfig
 from TTS.tts.datasets import load_tts_samples
-from TTS.tts.models.vits import Vits, VitsArgs, VitsAudioConfig
+from TTS.tts.models.vits2 import Vits, VitsArgs, VitsAudioConfig
 from TTS.tts.utils.speakers import SpeakerManager
 from TTS.tts.utils.languages import LanguageManager
 from TTS.tts.utils.text.tokenizer import TTSTokenizer
@@ -15,27 +15,27 @@ from TTS.encoder.models.lstm import LSTMSpeakerEncoder
 
 
 dataset_config = BaseDatasetConfig(
-    formatter="tcstar2", meta_file_train="metadata_norm.txt", language="es", path="/home/usuaris/veu/daniel.gonzalbez/tcstar"
+    formatter="tcstar3", meta_file_train="metadata_norm.txt", language="es", path="/home/usuaris/veu/daniel.gonzalbez/tcstar"
 )
 audio_config = VitsAudioConfig(
     sample_rate=16000, win_length=1024, hop_length=256, num_mels=80, mel_fmin=0, mel_fmax=None
 )
+
 vitsArgs = VitsArgs(
-    use_speaker_embedding=True,
-    num_speakers=6
-    #use_speaker_encoder_as_loss=True,
-    #use_d_vector_file=True,
-    #speaker_encoder_model_path="/home/usuaris/veu/daniel.gonzalbez/Multi-speaker-and-Multi-Lingual-TTS/best_model.pth.tar",
-    #speaker_encoder_config_path="/home/usuaris/veu/daniel.gonzalbez/TTS/TTS/config_speaker_enc.json",
+    use_speaker_embedding=False,
+    use_speaker_encoder_as_loss=True,
+    use_d_vector_file=True,
+    d_vector_dim=256,
+    speaker_encoder_model_path="/home/usuaris/veu/daniel.gonzalbez/Multi-speaker-and-Multi-Lingual-TTS/320k.pth.tar",
+    speaker_encoder_config_path="/home/usuaris/veu/daniel.gonzalbez/TTS/TTS/config_speaker_enc.json",
 
 )
-
 config = VitsConfig(
-    model_args =vitsArgs,
+    model_args=vitsArgs,
     audio=audio_config,
     run_name="vits_tcstar",
     batch_size=16,
-    eval_batch_size=4,
+    eval_batch_size=8,
     batch_group_size=5,
     num_loader_workers=1,
     num_eval_loader_workers=1,
@@ -44,8 +44,9 @@ config = VitsConfig(
     epochs=1000,
     text_cleaner="basic_cleaners",
     use_phonemes=True,
+    phonemizer='espeak',
     phoneme_language="es",
-    phoneme_cache_path=os.path.join('/home/usuaris/veu/daniel.gonzalbez/TTS/', "phoneme_cache"),
+    phoneme_cache_path=os.path.join('/home/usuaris/veu/daniel.gonzalbez/TTS', "phoneme_cache"),
     compute_input_seq_cache=True,
     print_step=50,
     print_eval=False,
@@ -53,8 +54,7 @@ config = VitsConfig(
     #max_text_len=325,  # change this if you have a larger VRAM than 16GB
     output_path='/home/usuaris/veu/daniel.gonzalbez/logs',
     datasets=[dataset_config],
-    cudnn_benchmark=False
-    #test_sentences=[["Me llevó mucho tiempo ser una voz natural y no robótica"]]
+    cudnn_benchmark=False,
 )
 
 ap = AudioProcessor.init_from_config(config)
@@ -75,8 +75,9 @@ train_samples, eval_samples = load_tts_samples(
     eval_split_max_size=config.eval_split_max_size,
     eval_split_size=config.eval_split_size,
 )
-print("TRAIN SAMPLESS: ", train_samples[0])
-speaker_manager = SpeakerManager()
+print("TRAIN SAMPLES: ", train_samples[0])
+speaker_manager = SpeakerManager(encoder_model_path=vitsArgs.speaker_encoder_model_path, 
+                        encoder_config_path=vitsArgs.speaker_encoder_config_path, d_vectors_file_path="/home/usuaris/veu/daniel.gonzalbez/tcstar/references2.pth")
 speaker_manager.set_ids_from_data(train_samples + eval_samples, parse_key="speaker_name")
 config.model_args.num_speakers = speaker_manager.num_speakers
 
@@ -84,18 +85,21 @@ language_manager = LanguageManager(config=config)
 config.model_args.num_languages = language_manager.num_languages
 
 
-model = Vits(config, ap, tokenizer, speaker_manager=speaker_manager)
+model = Vits(config, ap, tokenizer, speaker_manager = speaker_manager)
 
 #loader = model.get_data_loader(config, False, train_samples, True, 1)
 
 output_path = '/home/usuaris/veu/daniel.gonzalbez/logs'
+
+train_args = TrainerArgs(grad_accum_steps = 1)
 trainer = Trainer(
-    TrainerArgs(grad_accum_steps = 1),
+    train_args,
     config,
     output_path,
     model=model,
     train_samples=train_samples,
     eval_samples=eval_samples,
 )
+print("ALL SET")
 if __name__ == '__main__':
     trainer.fit()

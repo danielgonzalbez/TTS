@@ -131,6 +131,7 @@ class BasePhonemizer(abc.ABC):
         for t in text:
             p = self._phonemize(t, separator)
             phonemized.append(p)
+
         phonemized = self._phonemize_postprocess(phonemized, punctuations)
         return phonemized
 
