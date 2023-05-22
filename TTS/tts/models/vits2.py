@@ -287,6 +287,7 @@ class VitsDataset(TTSDataset):
             "wav": wav,
             "wav_file": wav_filename,
             "speaker_name": item["speaker_name"],
+            "language_name": item["language"]
         }
 
     @property
@@ -348,6 +349,7 @@ class VitsDataset(TTSDataset):
             "waveform": wav_padded,  # (B x T)
             "waveform_lens": wav_lens,  # (B)
             "waveform_rel_lens": wav_rel_lens,
+            "language_names": batch["language_name"],
             "audio_files": batch["wav_file"],
             "raw_text": batch["raw_text"],
             "speaker_names": batch["speaker_name"],
@@ -1272,7 +1274,7 @@ class Vits(BaseTTS):
                     spec,
                     spec_lens,
                     waveform,
-                aux_input={"d_vectors": d_vectors, "speaker_ids": speaker_ids, "language_ids": language_ids}, # CAMBIO MIO
+                aux_input={"d_vectors": d_vectors, "speaker_ids": speaker_ids, "language_ids": language_ids},
             )   
             # cache tensors for the generator pass
             self.model_outputs_cache = outputs  # pylint: disable=attribute-defined-outside-init
