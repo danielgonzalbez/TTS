@@ -287,7 +287,8 @@ class VitsDataset(TTSDataset):
             "wav": wav,
             "wav_file": wav_filename,
             "speaker_name": item["speaker_name"],
-            "language_name": item["language"]
+            "language_name": item["language"],
+            "audio_unique_name": item["audio_unique_name"],
         }
 
     @property
@@ -353,6 +354,7 @@ class VitsDataset(TTSDataset):
             "audio_files": batch["wav_file"],
             "raw_text": batch["raw_text"],
             "speaker_names": batch["speaker_name"],
+            "audio_unique_names": batch["audio_unique_name"],
         }
 
 
@@ -1071,7 +1073,6 @@ class Vits(BaseTTS):
             mel_spec_o.requires_grad = True
             
             # DxBx1xT -> Turn to BxTxD = BxTx80
-
             mel_spec_seg = mel_spec_seg.squeeze(2).permute(1,2,0)
             mel_spec_o = mel_spec_o.squeeze(2).permute(1,2,0)
 
@@ -1136,7 +1137,6 @@ class Vits(BaseTTS):
         # speaker embedding
         if self.args.use_speaker_embedding and sid is not None:
             g = self.emb_g(sid).unsqueeze(-1)
-
         # language embedding
         lang_emb = None
         if self.args.use_language_embedding and lid is not None:
@@ -1496,7 +1496,7 @@ class Vits(BaseTTS):
         # get d_vectors from audio file names        
         if self.speaker_manager is not None and self.speaker_manager.embeddings and self.args.use_d_vector_file:
             d_vector_mapping = self.speaker_manager.embeddings
-            d_vectors = [d_vector_mapping[w]["embedding"] for w in batch["speaker_names"]] # CAMBIO porque el identificador del audio es speaker_name
+            d_vectors = [d_vector_mapping[w]["embedding"] for w in batch["audio_unique_names"]] # CAMBIO porque el identificador del audio es speaker_name
             # 1x256
             d_vectors = torch.stack(d_vectors)
             # Bx1x256

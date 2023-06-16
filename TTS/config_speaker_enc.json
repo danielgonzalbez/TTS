@@ -24,13 +24,11 @@
     },
     "model": "speaker_encoder",
     "model_params": {
-        "model_name": "lstm",
+        "model_name":"lstm",
         "input_dim": 80,
         "proj_dim": 256,
         "lstm_dim": 768,
-        "num_lstm_layers": 3,
-        "use_lstm_with_projection": true,
-        "use_torch_spec": false
+        "num_lstm_layers": 3
     }
 
 }

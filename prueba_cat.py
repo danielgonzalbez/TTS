@@ -14,17 +14,11 @@ from TTS.encoder.models.lstm import LSTMSpeakerEncoder
 
 dataset_config = [
    BaseDatasetConfig(
-    formatter="carlos_tcstar3", meta_file_train="metadata_norm.txt", phonemizer="espeak", language="es", path="/home/usuaris/veu/daniel.gonzalbez/recordingsCarlosdePablo"
-   ),
-   BaseDatasetConfig(
     formatter="festcat3", meta_file_train="metadata_norm.txt", phonemizer="espeak", language="ca", path="/home/usuaris/veu/daniel.gonzalbez/festcat"
    ),
 ]   
 
 
-#dataset_config = BaseDatasetConfig(
-#    formatter="tcstar3", meta_file_train="metadata_norm.txt", language="es", path="/home/usuaris/veu/daniel.gonzalbez/tcstar"
-#)
 audio_config = VitsAudioConfig(
     sample_rate=16000, win_length=1024, hop_length=256, num_mels=80, mel_fmin=0, mel_fmax=None
 )
@@ -34,15 +28,13 @@ vitsArgs = VitsArgs(
     use_speaker_encoder_as_loss=True,
     use_d_vector_file=True,
     d_vector_dim=256,
-    speaker_encoder_model_path="/home/usuaris/veu/daniel.gonzalbez/Multi-speaker-and-Multi-Lingual-TTS/320k.pth.tar", #"/home/usuaris/veu/daniel.gonzalbez/best_model.pth.tar"
+    speaker_encoder_model_path="/home/usuaris/veu/daniel.gonzalbez/Multi-speaker-and-Multi-Lingual-TTS/320k.pth.tar",
     speaker_encoder_config_path="/home/usuaris/veu/daniel.gonzalbez/TTS/TTS/config_speaker_enc.json",
-    use_language_embedding=True,
-    language_ids_file="/home/usuaris/veu/daniel.gonzalbez/TTS/TTS/languages.json",
 )
 config = VitsConfig(
     model_args=vitsArgs,
     audio=audio_config,
-    run_name="vits_tcstar",
+    run_name="vits_festcat",
     batch_size=16,
     eval_batch_size=8,
     batch_group_size=5,
@@ -53,8 +45,9 @@ config = VitsConfig(
     epochs=1000,
     text_cleaner="esp_cat_cleaners",
     use_phonemes=True,
-    phonemizer='multi_phonemizer',
-    phoneme_cache_path=os.path.join('/home/usuaris/veu/daniel.gonzalbez/', "phoneme_cache_cat_sp_def"),
+    phonemizer='espeak',
+    phoneme_language="ca",
+    phoneme_cache_path=os.path.join('/home/usuaris/veu/daniel.gonzalbez/', "phoneme_cache_cat"),
     compute_input_seq_cache=True,
     print_step=50,
     print_eval=False,
@@ -63,12 +56,10 @@ config = VitsConfig(
     output_path='/home/usuaris/veu/daniel.gonzalbez/logs',
     datasets=dataset_config,
     cudnn_benchmark=False,
-    test_sentences=[['Hace un buen día para pasear.', '76_norm', None, 'es'],
-                    ['Fa un bon dia per passejar.', 'm1_norm', None, 'ca']
+    test_sentences=[['Fa un bon dia per passejar.', 'f1_norm'],
+                    ["Demà és el millor dia de l'any", 'm2_norm']
     ],
     use_speaker_weighted_sampler=True,
-    use_language_weighted_sampler=True,
-    speaker_encoder_loss_alpha = 6,
 )
 
 ap = AudioProcessor.init_from_config(config)
@@ -89,18 +80,15 @@ train_samples, eval_samples = load_tts_samples(
     eval_split_max_size=config.eval_split_max_size,
     eval_split_size=config.eval_split_size,
 )
-
-print("TRAIN SAMPLES: ", len(train_samples), "EVAL", len(eval_samples))
+print("TRAIN SAMPLES: ", train_samples[0])
 speaker_manager = SpeakerManager(encoder_model_path=vitsArgs.speaker_encoder_model_path, 
                         encoder_config_path=vitsArgs.speaker_encoder_config_path, d_vectors_file_path="/home/usuaris/veu/daniel.gonzalbez/sp_cat_ref_multiple_new256.pth") #references3.pth
 speaker_manager.set_ids_from_data(train_samples + eval_samples, parse_key="speaker_name")
 config.model_args.num_speakers = speaker_manager.num_speakers
 
-language_manager = LanguageManager(config=config)
-config.model_args.num_languages = language_manager.num_languages
 
 
-model = Vits(config, ap, tokenizer, speaker_manager = speaker_manager, language_manager=language_manager)
+model = Vits(config, ap, tokenizer, speaker_manager = speaker_manager)
 
 #loader = model.get_data_loader(config, False, train_samples, True, 1)
 

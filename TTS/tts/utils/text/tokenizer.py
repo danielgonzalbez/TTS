@@ -106,7 +106,7 @@ class TTSTokenizer:
         # TODO: text cleaner should pick the right routine based on the language
         #print("1", text)
         if self.text_cleaner is not None:
-            text = self.text_cleaner(text)
+            text = self.text_cleaner(text,language)# CAMBIO MIO
         #print("2", text)
         if self.use_phonemes:
             text = self.phonemizer.phonemize(text, separator="", language=language)

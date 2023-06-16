@@ -11,6 +11,7 @@ from .english.abbreviations import abbreviations_en
 from .english.number_norm import normalize_numbers as en_normalize_numbers
 from .english.time_norm import expand_time_english
 from .french.abbreviations import abbreviations_fr
+from .catalan.abbreviations import abbreviations_cat
 
 # Regular expression matching whitespace:
 _whitespace_re = re.compile(r"\s+")
@@ -21,6 +22,8 @@ def expand_abbreviations(text, lang="en"):
         _abbreviations = abbreviations_en
     elif lang == "fr":
         _abbreviations = abbreviations_fr
+    elif lang == "ca":
+        _abbreviations = abbreviations_cat
     for regex, replacement in _abbreviations:
         text = re.sub(regex, replacement, text)
     return text
@@ -79,6 +82,26 @@ def replace_symbols(text, lang="en"):
 
 
 def basic_cleaners(text):
+    """Basic pipeline that lowercases and collapses whitespace without transliteration."""
+    text = lowercase(text)
+    text = collapse_whitespace(text)
+    text = text.replace('¿', '').replace('¡', '')
+    return text
+
+def esp_cat_cleaners(text, lang):
+    """Basic pipeline that lowercases and collapses whitespace without transliteration."""
+    if lang == 'ca':
+        text = expand_abbreviations(text, lang=lang)
+    text = lowercase(text)
+    text = replace_symbols(text, lang=lang)
+    text = collapse_whitespace(text)
+    text = text.replace('¿', '').replace('¡', '')
+    text = text.replace('[TEC:]','').replace(']','').replace('TEC:','').replace('[','') if lang =='ca' else text
+    return text
+
+
+
+def esp_cleaners(text, lang):
     """Basic pipeline that lowercases and collapses whitespace without transliteration."""
     text = lowercase(text)
     text = collapse_whitespace(text)

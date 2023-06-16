@@ -202,7 +202,6 @@ class EmbeddingManager(BaseIDManager):
             else:
                 embeddings_by_names[x["name"]].append(x["embedding"])
         # Shape : 1x256
-        print("Original embeddings = ", [(x["embedding"].shape, x["name"]) for x in embeddings.values()])
         return name_to_id, clip_ids, embeddings, embeddings_by_names
 
     def load_embeddings_from_file(self, file_path: str) -> None:

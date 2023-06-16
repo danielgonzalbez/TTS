@@ -738,14 +738,14 @@ def tcstar3(root_path, meta_file='metadata_norm.txt', **kwargs):
         for line in lines:
             file_text, text = line.split('|')
             if file_text + '.wav' in filenames: # there have been some transcripts and audio files deleted in preprocessing
-                items.append({"text": text, "audio_file": root_path + '/' + folder + '/' + file_text + '.wav', "speaker_name": folder[:-1], "root_path": root_path, "language_id":0})
+                items.append({"text": text, "audio_file": root_path + '/' + folder + '/' + file_text + '.wav', "speaker_name": folder[:-1], "root_path": root_path, "language":'es', "audio_unique_name": file_text})
     print("Finished processing TCSTAR database.")
     return items
 
 
-def tcstar2_short(root_path, meta_file='metadata_norm.txt', **kwargs):
+def tcstar3_short(root_path, meta_file='metadata_norm.txt', **kwargs):
     # Hasta 18 segundos de audio 
-    FOLDERS = ['72_norm2']
+    FOLDERS = ['76_norm3']
     items = []
     max_duration = 0 # max signal length used for speaker encoding
     for i, folder in enumerate(FOLDERS):
@@ -762,11 +762,13 @@ def tcstar2_short(root_path, meta_file='metadata_norm.txt', **kwargs):
             if file_text + '.wav' in filenames: # there have been some transcripts and audio files deleted in preprocessing
                 #max_duration_sample, speaker_references = select_random_audios(root_path+'/'+folder, filenames, file_text, lengths_files)
                 #max_duration = max(max_duration, max_duration_sample)
-                items.append({"text": text, "audio_file": root_path + '/' + folder + '/' + file_text + '.wav', "speaker_name": folder[:-1], "root_path": root_path, "language_id":0})
+                items.append({"text": text, "audio_file": root_path + '/' + folder + '/' + file_text + '.wav', "speaker_name": folder[:-1], "root_path": root_path, "language":'es'})
     print("Finished processing TCSTAR database. The biggest speaker reference is of ", max_duration, " seconds.")
     return items
 
-def fescat3(root_path, meta_file='metadata_norm.txt', **kwargs):
+
+
+def festcat3(root_path, meta_file='metadata_norm.txt', **kwargs):
     # Hasta 18 segundos de audio 
     FOLDERS = ['f1_norm3', 'f2_norm3', 'f3_norm3', 'f4_norm3', 'f5_norm3', 'm1_norm3', 'm2_norm3', 'm3_norm3', 'm4_norm3', 'm5_norm3', 'm6_norm3']
     items = []
@@ -779,9 +781,127 @@ def fescat3(root_path, meta_file='metadata_norm.txt', **kwargs):
         os.chdir(root_path + '/'+ folder)
         filenames = sorted(os.listdir())
         for line in lines:
-            file_text, text = line.split('|')
-            items.append({"text": text, "audio_file": root_path + '/' + folder + '/' + file_text + '.wav', "speaker_name": folder[:-1], "root_path": root_path, "language": 'cat'})
+            if len(line.split('|'))==2:
+                line = line.replace('[TEC:]','').replace(']','').replace('TEC:','').replace('[','')
+                file_text, text = line.split('|')
+                if file_text + '.wav' in filenames:
+                    items.append({"text": text, "audio_file": root_path + '/' + folder + '/' + file_text + '.wav', "speaker_name": folder[:-1], "root_path": root_path, "language": 'ca', "audio_unique_name": file_text})
     print("Finished processing festcat database.")
     return items
 
 
+
+def festcat3_short(root_path, meta_file='metadata_norm.txt', **kwargs):
+    # Hasta 18 segundos de audio 
+    FOLDERS = ['m1_norm3']
+    items = []
+    for i, folder in enumerate(FOLDERS):
+        print("Processing ", folder, ".\n")
+        lengths_files = {}
+        txt_file = os.path.join(root_path + '/' + folder, meta_file)
+        text = open(txt_file, 'r')
+        lines = text.readlines()
+        os.chdir(root_path + '/'+ folder)
+        filenames = sorted(os.listdir())
+        for line in lines:
+            if len(line.split('|'))==2:
+                line = line.replace('[TEC:]','').replace(']','').replace('TEC:','').replace('[','')
+                file_text, text = line.split('|')
+                items.append({"text": text, "audio_file": root_path + '/' + folder + '/' + file_text + '.wav', "speaker_name": folder[:-1], "root_path": root_path, "language": 'cat'})
+    print("Finished processing festcat database.")
+    return items
+
+
+def carlos3(root_path, meta_file='metadata_norm.txt', **kwargs):
+    # Hasta 18 segundos de audio 
+    FOLDERS = ['Carlos_norm3']
+    items = []
+    for i, folder in enumerate(FOLDERS):
+        print("Processing ", folder, ".\n")
+        txt_file = os.path.join(root_path + '/' + folder, meta_file)
+        text = open(txt_file, 'r')
+        lines = text.readlines()
+        os.chdir(root_path + '/'+ folder)
+        filenames = sorted(os.listdir())
+        for line in lines:
+            file_text, text = line.split('|')
+            file_text = 'zuretts_tts_' + file_text
+            if file_text + '.wav' in filenames:
+                items.append({"text": text, "audio_file": root_path + '/' + folder + '/' + file_text + '.wav', "speaker_name": folder[:-1], "root_path": root_path, "language": 'es', "audio_unique_name": file_text})
+    print("Finished processing CarlosdePablo database.")
+    return items
+
+
+def carlos_tcstar3(root_path, meta_file='metadata_norm.txt', **kwargs):
+    # Hasta 18 segundos de audio (unidas porque hay muy pocas muestras para el eval_set en carlos)
+    FOLDERS = ['Carlos_norm3']
+    items = []
+    for i, folder in enumerate(FOLDERS):
+        print("Processing ", folder, ".\n")
+        txt_file = os.path.join(root_path + '/' + folder, meta_file)
+        text = open(txt_file, 'r')
+        lines = text.readlines()
+        os.chdir(root_path + '/'+ folder)
+        filenames = sorted(os.listdir())
+        for line in lines:
+            file_text, text = line.split('|')
+            file_text = 'zuretts_tts_' + file_text
+            if file_text + '.wav' in filenames:
+                items.append({"text": text, "audio_file": root_path + '/' + folder + '/' + file_text + '.wav', "speaker_name": folder[:-1], "root_path": root_path, "language": 'es', "audio_unique_name": file_text})
+    print("Finished processing CarlosdePablo database.")
+
+    FOLDERS = ['72_norm3','73_norm3', '75_norm3', '76_norm3', '79_norm3', '80_norm3']
+    items = []
+    max_duration = 0 # max signal length used for speaker encoding
+    root_path = "/home/usuaris/veu/daniel.gonzalbez/tcstar"
+    for i, folder in enumerate(FOLDERS):
+        print("Processing ", folder, ".\n")
+        lengths_files = {}
+        txt_file = os.path.join(root_path + '/' + folder, meta_file)
+        text = open(txt_file, 'r')
+        lines = text.readlines()
+        os.chdir(root_path + '/'+ folder)
+        filenames = sorted(os.listdir())
+        for line in lines:
+            file_text, text = line.split('|')
+            if file_text + '.wav' in filenames: # there have been some transcripts and audio files deleted in preprocessing
+                items.append({"text": text, "audio_file": root_path + '/' + folder + '/' + file_text + '.wav', "speaker_name": folder[:-1], "root_path": root_path, "language":'es', "audio_unique_name": file_text})
+    print("Finished processing TCSTAR database.")
+    return items
+
+def carlos_tcstar4(root_path, meta_file='metadata_norm.txt', **kwargs):
+    # Hasta 18 segundos de audio (unidas porque hay muy pocas muestras para el eval_set en carlos)
+    FOLDERS = ['Carlos_norm3']
+    items = []
+    for i, folder in enumerate(FOLDERS):
+        print("Processing ", folder, ".\n")
+        txt_file = os.path.join(root_path + '/' + folder, meta_file)
+        text = open(txt_file, 'r')
+        lines = text.readlines()
+        os.chdir(root_path + '/'+ folder)
+        filenames = sorted(os.listdir())
+        for line in lines:
+            file_text, text = line.split('|')
+            file_text = 'zuretts_tts_' + file_text
+            if file_text + '.wav' in filenames:
+                items.append({"text": text, "audio_file": root_path + '/' + folder + '/' + file_text + '.wav', "speaker_name": folder[:-1], "root_path": root_path, "language": 'es', "audio_unique_name": file_text})
+    print("Finished processing CarlosdePablo database.")
+
+    FOLDERS = ['72_norm3','73_norm3', '75_norm3', '76_norm3', '79_norm3']
+    items = []
+    max_duration = 0 # max signal length used for speaker encoding
+    root_path = "/home/usuaris/veu/daniel.gonzalbez/tcstar"
+    for i, folder in enumerate(FOLDERS):
+        print("Processing ", folder, ".\n")
+        lengths_files = {}
+        txt_file = os.path.join(root_path + '/' + folder, meta_file)
+        text = open(txt_file, 'r')
+        lines = text.readlines()
+        os.chdir(root_path + '/'+ folder)
+        filenames = sorted(os.listdir())
+        for line in lines:
+            file_text, text = line.split('|')
+            if file_text + '.wav' in filenames: # there have been some transcripts and audio files deleted in preprocessing
+                items.append({"text": text, "audio_file": root_path + '/' + folder + '/' + file_text + '.wav', "speaker_name": folder[:-1], "root_path": root_path, "language":'es', "audio_unique_name": file_text})
+    print("Finished processing TCSTAR database.")
+    return items
